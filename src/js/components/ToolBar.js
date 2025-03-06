@@ -500,7 +500,7 @@ const ToolBar = ({ terrainBuilderRef, mode, handleModeChange, axisLockEnabled, s
 							</button>
 						</Tooltip>
 						<div className="control-divider-vertical"></div>
-						<Tooltip text="Wall Tool - Click to place wall start, click again to place. Hold Ctrl to erase. q cancels">
+						<Tooltip text="Wall Tool - Click to place wall start, click again to place. Hold Ctrl to erase. Press 1 and 2 to adjust height. q cancels">
 							<button
 								onClick={() => handleToolToggle("wall")}
 								className={`control-button ${activeTool === "wall" ? "selected" : ""}`}>
