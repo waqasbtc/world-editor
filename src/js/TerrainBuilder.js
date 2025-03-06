@@ -1091,13 +1091,9 @@ function TerrainBuilder({ onSceneReady, previewPositionToAppJS, currentBlockType
 		// Initialize the tool manager with all the properties tools might need
 		const terrainBuilderProps = {
 			scene,
-			gl,
 			terrainRef: terrainRef,
 			currentBlockTypeRef: currentBlockTypeRef,
-			undoRedoManager: undoRedoManager,
 			previewPositionRef: previewPositionRef,
-			refreshMeshes: refreshBlockMeshes,
-			renderer: gl, // Use gl as the renderer
 			terrainBuilderRef: ref, // Add a reference to this component
 			// Add any other properties tools might need
 		};

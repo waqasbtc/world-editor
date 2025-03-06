@@ -28,9 +28,7 @@ class WallTool extends BaseTool {
 			this.terrainRef = terrainBuilderProps.terrainRef;
 			this.currentBlockTypeRef = terrainBuilderProps.currentBlockTypeRef;
 			this.scene = terrainBuilderProps.scene;
-			this.renderer = terrainBuilderProps.renderer;
 			this.toolManagerRef = terrainBuilderProps.toolManagerRef;
-			this.refreshMeshes = terrainBuilderProps.refreshMeshes;
 			this.terrainBuilderRef = terrainBuilderProps.terrainBuilderRef;
 
 			// Add missing preview position ref
