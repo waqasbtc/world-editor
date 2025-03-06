@@ -17,6 +17,7 @@ class WallTool extends BaseTool {
 
 		// CAREFUL: We need to explicitly get properties from the terrainBuilder
 		this.name = "WallTool";
+		this.tooltip = "Wall Tool: Click to start, click again to place. Use 1 | 2 to adjust height. Hold Ctrl to erase. Press Q to cancel. ";
 		this.wallHeight = 1;
 		this.isCtrlPressed = false;
 		this.wallStartPosition = null;
@@ -58,6 +59,7 @@ class WallTool extends BaseTool {
 			console.log('Initializing empty terrainRef.current in onActivate');
 			this.terrainRef.current = {};
 		}
+
 
 	}
 

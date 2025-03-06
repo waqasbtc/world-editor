@@ -10,6 +10,7 @@ class BaseTool {
     this.terrainBuilder = terrainBuilder;
     this.active = false;
     this.name = "BaseTool";
+    this.tooltip = "Tool not implemented";
   }
 
   /**

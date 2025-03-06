@@ -6,9 +6,7 @@ import "../../css/ToolBar.css";
 import { generatePerlinNoise } from "perlin-noise";
 import { 
 	exportMapFile,
-	exportFullAssetPack, 
 	importMap,
-	importAssetPack
 } from '../ImportExport';
 import { DISABLE_ASSET_PACK_IMPORT_EXPORT } from '../Constants';
 const ToolBar = ({ terrainBuilderRef, mode, handleModeChange, axisLockEnabled, setAxisLockEnabled, placementSize, setPlacementSize, setGridSize, undoRedoManager, currentBlockType, environmentBuilderRef }) => {
@@ -502,7 +500,10 @@ const ToolBar = ({ terrainBuilderRef, mode, handleModeChange, axisLockEnabled, s
 						<div className="control-divider-vertical"></div>
 						<Tooltip text="Wall Tool - Click to place wall start, click again to place. Hold Ctrl to erase. Press 1 and 2 to adjust height. q cancels">
 							<button
-								onClick={() => handleToolToggle("wall")}
+								onClick={() => {
+									handleToolToggle("wall");
+									setPlacementSize("single");
+								}}
 								className={`control-button ${activeTool === "wall" ? "selected" : ""}`}>
 								<FaDrawPolygon />
 							</button>
