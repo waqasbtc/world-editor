@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { FaPlus, FaMinus, FaCube, FaBorderStyle, FaLock, FaLockOpen, FaUndo, FaRedo, FaExpand, FaTrash, FaCircle, FaSquare, FaMountain } from "react-icons/fa";
+import { FaPlus, FaMinus, FaCube, FaBorderStyle, FaLock, FaLockOpen, FaUndo, FaRedo, FaExpand, FaTrash, FaCircle, FaSquare, FaMountain, FaDrawPolygon } from "react-icons/fa";
 import Tooltip from "../components/Tooltip";
 import { DatabaseManager, STORES } from "../DatabaseManager";
 import "../../css/ToolBar.css";
 import { generatePerlinNoise } from "perlin-noise";
 import { 
 	exportMapFile,
-	exportFullAssetPack, 
 	importMap,
-	importAssetPack
 } from '../ImportExport';
 import { DISABLE_ASSET_PACK_IMPORT_EXPORT } from '../Constants';
 const ToolBar = ({ terrainBuilderRef, mode, handleModeChange, axisLockEnabled, setAxisLockEnabled, placementSize, setPlacementSize, setGridSize, undoRedoManager, currentBlockType, environmentBuilderRef }) => {
@@ -39,6 +37,10 @@ const ToolBar = ({ terrainBuilderRef, mode, handleModeChange, axisLockEnabled, s
 	// Add state for undo/redo button availability
 	const [canUndo, setCanUndo] = useState(true);
 	const [canRedo, setCanRedo] = useState(false);
+
+	// Add state for active tool tracking
+	const [activeTool, setActiveTool] = useState(null);
+
 	let startPos = {
 		x: 0,
 		y: 0,
@@ -162,7 +164,16 @@ const ToolBar = ({ terrainBuilderRef, mode, handleModeChange, axisLockEnabled, s
 	};
 
 	const handleClearMap = () => {
-		terrainBuilderRef.current?.clearMap();
+		// Deactivate any active tool
+		if (activeTool) {
+			terrainBuilderRef.current?.activateTool(null);
+			setActiveTool(null);
+		}
+		
+		// Confirm before clearing
+		if (window.confirm("Are you sure you want to clear the map? This cannot be undone.")) {
+			terrainBuilderRef.current?.clearMap();
+		}
 	};
 
 	const generateTerrain = () => {
@@ -322,6 +333,33 @@ const ToolBar = ({ terrainBuilderRef, mode, handleModeChange, axisLockEnabled, s
 		}
 	};
 
+	// Add function to toggle tools
+	const handleToolToggle = (toolName) => {
+		if (activeTool === toolName) {
+			// Deactivate the current tool
+			terrainBuilderRef.current?.activateTool(null);
+			setActiveTool(null);
+		} else {
+			// Activate the requested tool
+			const success = terrainBuilderRef.current?.activateTool(toolName);
+			if (success) {
+				setActiveTool(toolName);
+			}
+		}
+	};
+
+	// Update handleModeChange to deactivate tools when switching modes
+	const handleModeChangeWithToolReset = (newMode) => {
+		// Deactivate any active tool
+		if (activeTool) {
+			terrainBuilderRef.current?.activateTool(null);
+			setActiveTool(null);
+		}
+		
+		// Call the original handleModeChange function
+		handleModeChange(newMode);
+	};
+
 	return (
 		<>
 			<div className="controls-container">
@@ -385,14 +423,14 @@ const ToolBar = ({ terrainBuilderRef, mode, handleModeChange, axisLockEnabled, s
 					<div className="control-button-wrapper">
 						<Tooltip text="Add blocks">
 							<button
-								onClick={() => handleModeChange("add")}
+								onClick={() => handleModeChangeWithToolReset("add")}
 								className={`control-button ${mode === "add" ? "selected" : ""}`}>
 								<FaPlus />
 							</button>
 						</Tooltip>
 						<Tooltip text="Remove blocks">
 							<button
-								onClick={() => handleModeChange("remove")}
+								onClick={() => handleModeChangeWithToolReset("remove")}
 								className={`control-button ${mode === "remove" ? "selected" : ""}`}>
 								<FaMinus />
 							</button>
@@ -404,6 +442,7 @@ const ToolBar = ({ terrainBuilderRef, mode, handleModeChange, axisLockEnabled, s
 								{axisLockEnabled ? <FaLock /> : <FaLockOpen />}
 							</button>
 						</Tooltip>
+						
 						<Tooltip text="Undo (Ctrl+Z)">
 							<button
 								onClick={() => undoRedoManager.handleUndo()}
@@ -458,10 +497,23 @@ const ToolBar = ({ terrainBuilderRef, mode, handleModeChange, axisLockEnabled, s
 								<FaSquare style={{ width: "20px", height: "20px" }} />
 							</button>
 						</Tooltip>
+						<div className="control-divider-vertical"></div>
+						<Tooltip text="Wall Tool - Click to place wall start, click again to place. Hold Ctrl to erase. Press 1 and 2 to adjust height. q cancels">
+							<button
+								onClick={() => {
+									handleToolToggle("wall");
+									setPlacementSize("single");
+								}}
+								className={`control-button ${activeTool === "wall" ? "selected" : ""}`}>
+								<FaDrawPolygon />
+							</button>
+						</Tooltip>
 					</div>
 					<div className="control-label">Placement Tools</div>
+					
 				</div>
 				<div className="control-group">
+					
 					<div className="control-button-wrapper">
 						<Tooltip text="Generate solid cube">
 							<button

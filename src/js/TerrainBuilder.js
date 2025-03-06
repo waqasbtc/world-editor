@@ -9,6 +9,9 @@ import { THRESHOLD_FOR_PLACING, BLOCK_INSTANCED_MESH_CAPACITY } from "./Constant
 import { refreshBlockTools } from "./components/BlockToolsSidebar";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils";
 
+// Import tools
+import { ToolManager, WallTool } from "./tools";
+
 let meshesNeedsRefresh = false;
 
 // Modify the blockTypes definition to be a function that can be updated
@@ -208,6 +211,9 @@ function TerrainBuilder({ onSceneReady, previewPositionToAppJS, currentBlockType
 	const tempVec2Ref = useRef(new THREE.Vector2());
 	const tempVec2_2Ref = useRef(new THREE.Vector2());
 
+	// Add Tool Manager ref
+	const toolManagerRef = useRef(null);
+
 	//* TERRAIN UPDATE FUNCTIONS *//
 	//* TERRAIN UPDATE FUNCTIONS *//
 	//* TERRAIN UPDATE FUNCTIONS *//
@@ -399,6 +405,16 @@ function TerrainBuilder({ onSceneReady, previewPositionToAppJS, currentBlockType
 	/// Placement and Modification Functions ///
 
 	const handleMouseDown = (event) => {
+		// If a tool is active, delegate the event to it
+		if (toolManagerRef.current && toolManagerRef.current.getActiveTool()) {
+			const intersection = getRaycastIntersection();
+			if (intersection) {
+				toolManagerRef.current.handleMouseDown(event, intersection.point, event.button);
+				return; // Let the tool handle it
+			}
+		}
+		
+		// Otherwise use default behavior
 		if (event.button === 0) {
 			isPlacingRef.current = true;
 			isFirstBlockRef.current = true;
@@ -590,6 +606,14 @@ function TerrainBuilder({ onSceneReady, previewPositionToAppJS, currentBlockType
 		const intersection = getRaycastIntersection();
 		if (!intersection) return;
 
+		// If a tool is active, delegate the mouse move event to it
+		if (toolManagerRef.current && toolManagerRef.current.getActiveTool()) {
+			toolManagerRef.current.handleMouseMove(null, intersection.point);
+			
+			// Also call tool update method to allow for continuous updates
+			toolManagerRef.current.update();
+		}
+
 		if (!currentBlockTypeRef?.current?.isEnvironment) {
 			// Reuse vector for grid position calculation
 			tempVectorRef.current.copy(intersection.point);
@@ -681,6 +705,16 @@ function TerrainBuilder({ onSceneReady, previewPositionToAppJS, currentBlockType
 
 	// Move undo state saving to handlePointerUp
 	const handleMouseUp = (event) => {
+		// If a tool is active, delegate the event to it
+		if (toolManagerRef.current && toolManagerRef.current.getActiveTool()) {
+			const intersection = getRaycastIntersection();
+			if (intersection) {
+				toolManagerRef.current.handleMouseUp(event, intersection.point);
+				return; // Let the tool handle it
+			}
+		}
+		
+		// Otherwise use default behavior
 		if (event.button === 0) {
 			isPlacingRef.current = false;
 			// Clear recently placed blocks
@@ -1054,6 +1088,22 @@ function TerrainBuilder({ onSceneReady, previewPositionToAppJS, currentBlockType
 				});
 		}
 
+		// Initialize the tool manager with all the properties tools might need
+		const terrainBuilderProps = {
+			scene,
+			terrainRef: terrainRef,
+			currentBlockTypeRef: currentBlockTypeRef,
+			previewPositionRef: previewPositionRef,
+			terrainBuilderRef: ref, // Add a reference to this component
+			// Add any other properties tools might need
+		};
+		
+		toolManagerRef.current = new ToolManager(terrainBuilderProps);
+		
+		// Register tools
+		const wallTool = new WallTool(terrainBuilderProps);
+		toolManagerRef.current.registerTool("wall", wallTool);
+		
 		initialize();
 
 		return () => {
@@ -1122,6 +1172,7 @@ function TerrainBuilder({ onSceneReady, previewPositionToAppJS, currentBlockType
 		updateTerrainFromToolBar,
 		getCurrentTerrainData,
 		clearMap,
+
 		/**
 		 * Force a DB reload of terrain and then rebuild it
 		 */
@@ -1139,6 +1190,23 @@ function TerrainBuilder({ onSceneReady, previewPositionToAppJS, currentBlockType
 				console.error("Error reloading terrain from DB:", err);
 			}
 		},
+		// Add method to activate a tool
+		activateTool: (toolName) => {
+			if (toolManagerRef.current) {
+				return toolManagerRef.current.activateTool(toolName);
+			}
+			return false;
+		},
+		// Add method to get active tool name
+		getActiveToolName: () => {
+			if (toolManagerRef.current && toolManagerRef.current.getActiveTool()) {
+				return toolManagerRef.current.getActiveTool().name;
+			}
+			return null;
+		},
+
+		updateTerrainBlocks,
+	
 	}));
 
 	// Add resize listener to update canvasRect
@@ -1149,6 +1217,68 @@ function TerrainBuilder({ onSceneReady, previewPositionToAppJS, currentBlockType
 		window.addEventListener('resize', handleResize);
 		return () => window.removeEventListener('resize', handleResize);
 	}, []);
+
+	// Add key event handlers to delegate to tools
+	const handleKeyDown = (event) => {
+		if (toolManagerRef.current && toolManagerRef.current.getActiveTool()) {
+			toolManagerRef.current.handleKeyDown(event);
+		}
+	};
+	
+	const handleKeyUp = (event) => {
+		if (toolManagerRef.current && toolManagerRef.current.getActiveTool()) {
+			toolManagerRef.current.handleKeyUp(event);
+		}
+	};
+	
+	// Update useEffect to add key event listeners
+	useEffect(() => {
+		window.addEventListener('keydown', handleKeyDown);
+		window.addEventListener('keyup', handleKeyUp);
+		
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+			window.removeEventListener('keyup', handleKeyUp);
+		};
+	}, []);
+
+	// Add cleanup for tool manager when component unmounts
+	useEffect(() => {
+		return () => {
+			if (toolManagerRef.current) {
+				toolManagerRef.current.dispose();
+				toolManagerRef.current = null;
+			}
+		};
+	}, []);
+
+	
+	// update the terrain blocks for added and removed blocks
+	const updateTerrainBlocks = (addedBlocks, removedBlocks) => {
+		console.log('Updating terrain blocks:', addedBlocks);
+		// If we placed any blocks, update the scene
+		if (Object.keys(addedBlocks).length > 0 || Object.keys(removedBlocks).length > 0) {
+			
+			buildUpdateTerrain();
+			playPlaceSound();
+
+			// Save to database
+			DatabaseManager.saveData(STORES.TERRAIN, "current", terrainRef.current);
+
+			// Handle undo/redo correctly
+			if (undoRedoManager) {
+				// Create the changes object in the format expected by saveUndo
+				const changes = {
+					terrain: {
+						added: addedBlocks,
+						removed: removedBlocks
+					}
+				};
+				// Save the undo state
+				undoRedoManager.saveUndo(changes);
+			}
+		}
+	}
 
 	//// HTML Return Render
 	return (
