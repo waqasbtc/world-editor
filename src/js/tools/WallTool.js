@@ -184,50 +184,35 @@ class WallTool extends BaseTool {
 
 		if (!startPos || !endPos) return;
 
-		// Convert positions to integers for block placement
-		const startX = Math.round(startPos.x);
-		const startY = Math.round(startPos.y);
-		const startZ = Math.round(startPos.z);
-
-		const endX = Math.round(endPos.x);
-		const endZ = Math.round(endPos.z);
+		// Convert positions to integers
+		const startX = Math.round(startPos.x), startY = Math.round(startPos.y), startZ = Math.round(startPos.z);
+		const endX = Math.round(endPos.x), endZ = Math.round(endPos.z);
 
 		// Calculate direction vector
 		const dx = Math.sign(endX - startX);
 		const dz = Math.sign(endZ - startZ);
 
-		// Start at the start position
-		let x = startX;
-		let z = startZ;
-
-		// Track added blocks for undo/redo
 		const addedBlocks = {};
+		const blockType = this.currentBlockTypeRef.current.id;
 
-		// Iterate along the path until we reach the end position
-		while (x !== endX || z !== endZ) {
-			// For each position along the path, create a column of blocks up to the wall height
+		// Helper function to place a column of blocks
+		const placeColumn = (x, z) => {
 			for (let y = 0; y < height; y++) {
 				const pos = `${x},${startY + y},${z}`;
-				// Only place if there's not already a block here
 				if (!this.terrainRef.current[pos]) {
-					this.terrainRef.current[pos] = this.currentBlockTypeRef.current.id;
-					addedBlocks[pos] = this.currentBlockTypeRef.current.id;
+					this.terrainRef.current[pos] = blockType;
+					addedBlocks[pos] = blockType;
 				}
 			}
+		};
 
-			// Move to the next position along the path
-			if (x !== endX) x += dx;
-			if (z !== endZ) z += dz;
+		// Iterate along the path (including endpoint)
+		for (let x = startX, z = startZ; x !== endX || z !== endZ; x += (x !== endX ? dx : 0), z += (z !== endZ ? dz : 0)) {
+			placeColumn(x, z);
 		}
 
-		// Place the final column at the end position
-		for (let y = 0; y < height; y++) {
-			const pos = `${endX},${startY + y},${endZ}`;
-			if (!this.terrainRef.current[pos]) {
-				this.terrainRef.current[pos] = this.currentBlockTypeRef.current.id;
-				addedBlocks[pos] = this.currentBlockTypeRef.current.id;
-			}
-		}
+		// Ensure the final column is placed
+		placeColumn(endX, endZ);
 
 		this.terrainBuilderRef.current.updateTerrainBlocks(
 			addedBlocks,
@@ -250,76 +235,38 @@ class WallTool extends BaseTool {
 			return false;
 		}
 
-		// Convert positions to integers for block removal
-		const startX = Math.round(startPos.x);
-		const startY = Math.round(startPos.y);
-		const startZ = Math.round(startPos.z);
+		// Convert positions to integers
+		const startX = Math.round(startPos.x), startY = Math.round(startPos.y), startZ = Math.round(startPos.z);
+		const endX = Math.round(endPos.x), endY = Math.round(endPos.y), endZ = Math.round(endPos.z);
 
-		const endX = Math.round(endPos.x);
-		const endY = Math.round(endPos.y);
-		const endZ = Math.round(endPos.z);
+		console.log(`Erasing wall from ${startX}, ${startY}, ${startZ} to ${endX}, ${endY}, ${endZ}`);
 
-		console.log('Erasing wall from', startX, startY, startZ, 'to', endX, endY, endZ);
-
-		// Track removed blocks for undo/redo
-		const removedBlocks = [];
-
-		// Calculate direction vector using Math.sign
+		const removedBlocks = {};
 		const dx = Math.sign(endX - startX);
 		const dz = Math.sign(endZ - startZ);
 
-		// Handle single point case
-		if (startX === endX && startZ === endZ) {
-			// Just erase a single column
+		// Helper function to erase a column at a given (x, z)
+		const eraseColumn = (x, z) => {
 			for (let h = 0; h < height; h++) {
-				const posKey = `${startX},${startY + h},${startZ}`;
+				const posKey = `${x},${startY + h},${z}`;
 				if (this.terrainRef.current[posKey]) {
-					const blockTypeId = this.terrainRef.current[posKey];
-					removedBlocks.push({
-						position: { x: startX, y: startY + h, z: startZ },
-						blockTypeId
-					});
+					removedBlocks[posKey] = this.terrainRef.current[posKey];
 					delete this.terrainRef.current[posKey];
 				}
 			}
-		} else {
-			// Start at the start position
-			let x = startX;
-			let z = startZ;
+		};
 
-			// Iterate along the path until we reach the end position
-			while (x !== endX || z !== endZ) {
-				// For each position along the path, erase a column of blocks
-				for (let h = 0; h < height; h++) {
-					const posKey = `${x},${startY + h},${z}`;
-					if (this.terrainRef.current[posKey]) {
-						const blockTypeId = this.terrainRef.current[posKey];
-						removedBlocks.push({
-							position: { x, y: startY + h, z },
-							blockTypeId
-						});
-						delete this.terrainRef.current[posKey];
-					}
-				}
-
-				// Move to the next position along the path
-				if (x !== endX) x += dx;
-				if (z !== endZ) z += dz;
-			}
-
-			// Process the end position
-			for (let h = 0; h < height; h++) {
-				const posKey = `${endX},${startY + h},${endZ}`;
-				if (this.terrainRef.current[posKey]) {
-					const blockTypeId = this.terrainRef.current[posKey];
-					removedBlocks.push({
-						position: { x: endX, y: startY + h, z: endZ },
-						blockTypeId
-					});
-					delete this.terrainRef.current[posKey];
-				}
-			}
+		// Erase along the path
+		let x = startX, z = startZ;
+		while (x !== endX || z !== endZ) {
+			eraseColumn(x, z);
+			if (x !== endX) x += dx;
+			if (z !== endZ) z += dz;
 		}
+
+		// Erase the final column at the endpoint
+		eraseColumn(endX, endZ);
+
 
 		this.terrainBuilderRef.current.updateTerrainBlocks(
 			{},
